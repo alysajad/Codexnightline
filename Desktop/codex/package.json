@@ -1,17 +1,40 @@
 {
-  "name": "depcheck-ai",
-  "version": "0.1.0",
-  "private": true,
+  "name": "@huxi1314k/depcheck-ai",
+  "version": "0.2.0",
+  "description": "Dependency security guard for AI coding agents.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/alysajad/Codexnightline.git"
+  },
+  "homepage": "https://github.com/alysajad/Codexnightline#readme",
+  "bugs": {
+    "url": "https://github.com/alysajad/Codexnightline/issues"
+  },
   "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
   "bin": {
-    "depcheck": "dist/cli.js"
+    "depcheck": "dist/cli.js",
+    "depcheck-guardian": "dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "RELEASING.md"
+  ],
+  "publishConfig": {
+    "access": "public"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "test": "vitest run",
     "stress": "vitest run test/stress.test.ts",
     "audit": "node dist/cli.js audit",
-    "hook": "node .codex/hooks/depcheck-hook.mjs"
+    "hook": "node .codex/hooks/depcheck-hook.mjs",
+    "prepack": "npm run build",
+    "prepublishOnly": "npm test"
   },
   "devDependencies": {
     "@types/node": "latest",
