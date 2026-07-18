@@ -14,6 +14,11 @@ const json = async <T>(url: string, init?: RequestInit): Promise<T> => {
 const exec = promisify(execFile);
 
 const githubRepo = (value?: string) => value?.match(/github\.com[/:]([^/]+\/[^/#.]+?)(?:\.git)?$/i)?.[1];
+const exactNpmVersion = (value?: string) => Boolean(value?.match(/^\d+\.\d+\.\d+(?:-[\w.-]+)?(?:\+[\w.-]+)?$/));
+
+export function resolveNpmVersion(versions: Record<string, unknown>, latest: string, requested?: string): string | undefined {
+  return exactNpmVersion(requested) ? (versions[requested!] ? requested : undefined) : latest;
+}
 
 async function vulnerabilities(dependency: Dependency): Promise<Vulnerability[]> {
   try {
@@ -38,8 +43,9 @@ async function github(repository?: string): Promise<PackageAudit["github"]> {
 async function npmPackageAudit(dependency: Dependency): Promise<PackageAudit> {
   try {
     const metadata = await json<{ "dist-tags": { latest: string }; time?: Record<string, string>; versions: Record<string, { description?: string; homepage?: string; repository?: string | { url?: string }; license?: string; author?: string | { name?: string }; deprecated?: string; maintainers?: unknown[] }> }>(`https://registry.npmjs.org/${encodeURIComponent(dependency.name)}`);
-    const version = dependency.version?.replace(/^[~^]/, "") || metadata["dist-tags"].latest;
-    const data = metadata.versions[version] ?? metadata.versions[metadata["dist-tags"].latest];
+    const version = resolveNpmVersion(metadata.versions, metadata["dist-tags"].latest, dependency.version);
+    if (!version) return { dependency, exists: false, vulnerabilities: [], threatSignals: [], alternatives: suggestedAlternatives(dependency.name), ...scoreAudit({ dependency, exists: false, vulnerabilities: [], threatSignals: [] }) };
+    const data = metadata.versions[version];
     const repository = typeof data?.repository === "string" ? data.repository : data?.repository?.url;
     const downloads = await json<{ downloads: number }>(`https://api.npmjs.org/downloads/point/last-month/${encodeURIComponent(dependency.name)}`).catch(() => undefined);
     const weekly = downloads ? Math.round(downloads.downloads / 4.345) : undefined;
