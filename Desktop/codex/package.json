@@ -1,6 +1,6 @@
 {
   "name": "@huxi1314k/depcheck-ai",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "Dependency security guard for AI coding agents.",
   "license": "MIT",
   "repository": {

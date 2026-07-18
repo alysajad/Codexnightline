@@ -17,20 +17,17 @@ function handler(hookPath: string): HookHandler {
   };
 }
 
+function addGuardian(groups: HookGroup[], hookPath: string): HookGroup[] {
+  const clean = groups.map((group) => ({ ...group, hooks: group.hooks.filter((item) => item.statusMessage !== marker) })).filter((group) => group.hooks.length);
+  const existing = clean.find((group) => group.matcher === "*");
+  const next = { matcher: "*", hooks: [...(existing?.hooks ?? []), handler(hookPath)] };
+  return existing ? clean.map((group) => group === existing ? next : group) : [...clean, next];
+}
+
 export function addCodexGuardian(config: HooksFile, hookPath: string): HooksFile {
   const hooks = structuredClone(config.hooks ?? {});
-  for (const matcher of ["^Bash$", "^(apply_patch|Edit|Write)$"]) {
-    const groups = hooks.PreToolUse ?? [];
-    const group = groups.find((candidate) => candidate.matcher === matcher);
-    const clean = (group?.hooks ?? []).filter((item) => item.statusMessage !== marker);
-    const next = { matcher, hooks: [...clean, handler(hookPath)] };
-    hooks.PreToolUse = group ? groups.map((candidate) => candidate === group ? next : candidate) : [...groups, next];
-  }
-  const postGroups = hooks.PostToolUse ?? [];
-  const post = postGroups.find((candidate) => candidate.matcher === "^Bash$");
-  const cleanPost = (post?.hooks ?? []).filter((item) => item.statusMessage !== marker);
-  const nextPost = { matcher: "^Bash$", hooks: [...cleanPost, handler(join(dirname(hookPath), "post-hook.js"))] };
-  hooks.PostToolUse = post ? postGroups.map((candidate) => candidate === post ? nextPost : candidate) : [...postGroups, nextPost];
+  hooks.PreToolUse = addGuardian(hooks.PreToolUse ?? [], hookPath);
+  hooks.PostToolUse = addGuardian(hooks.PostToolUse ?? [], join(dirname(hookPath), "post-hook.js"));
   return { ...config, description: config.description ?? "Codex lifecycle hooks.", hooks };
 }
 
