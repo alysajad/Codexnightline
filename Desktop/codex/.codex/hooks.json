@@ -1,0 +1,31 @@
+{
+  "description": "Audit dependencies before Codex installs them or edits supported manifests.",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "^Bash$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$(git rev-parse --show-toplevel)/.codex/hooks/depcheck-hook.mjs\"",
+            "commandWindows": "node .codex\\hooks\\depcheck-hook.mjs",
+            "timeout": 30,
+            "statusMessage": "Auditing dependency install"
+          }
+        ]
+      },
+      {
+        "matcher": "^(apply_patch|Edit|Write)$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$(git rev-parse --show-toplevel)/.codex/hooks/depcheck-hook.mjs\"",
+            "commandWindows": "node .codex\\hooks\\depcheck-hook.mjs",
+            "timeout": 30,
+            "statusMessage": "Auditing dependency manifest"
+          }
+        ]
+      }
+    ]
+  }
+}

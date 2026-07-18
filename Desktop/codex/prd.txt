@@ -1,0 +1,277 @@
+Product Requirements Document (PRD)
+
+Project Name
+
+DepCheck AI
+
+Tagline: Never install another AI-hallucinated package.
+
+Version: 1.1
+
+Document Status: Development Ready
+
+Target Timeline: MVP (2 to 3 Hours), Production (2 Weeks)
+
+---
+
+1. Executive Summary
+
+DepCheck AI is a local, agent-agnostic dependency guard for AI-assisted development. It runs wherever coding agents work: terminals, IDEs, and agent runtimes such as Claude Code, Codex, Antigravity, Cursor, GitHub Copilot, Windsurf, and future compatible agents.
+
+When an agent creates or changes a dependency manifest (for example `requirements.txt`, `package.json`, `pyproject.toml`, `go.mod`, `Cargo.toml`, or `Gemfile`) or attempts an install command, DepCheck AI extracts every dependency, verifies it against trusted registries and security sources, and returns an audit before installation proceeds.
+
+For example, before:
+
+```
+npm install express prisma zod
+pip install fastapi uvicorn
+```
+
+DepCheck AI checks each dependency for existence, security, maintenance, community health, and safer alternatives. It prevents AI-hallucinated, deprecated, or risky packages from being silently installed.
+
+---
+
+2. Problem Statement
+
+Coding agents routinely create requirements files and run package installers. Developers often accept those changes without checking:
+
+* Whether the package exists and the name is correct
+* Whether it is maintained or deprecated
+* Whether known vulnerabilities exist
+* Whether the repository is active
+* Whether it supports the required language or ecosystem conventions
+* Whether it has enough community trust
+* Whether a healthier maintained alternative exists
+
+This creates security, productivity, and long-term maintenance risk. Browser-only detection misses the terminal and IDE workflows where agents actually create manifests and install packages.
+
+---
+
+3. Vision
+
+Create the dependency-audit layer for coding agents.
+
+Before an agent writes a dependency manifest or executes an install command, developers should immediately know whether every dependency is trustworthy and be able to approve, reject, or replace risky ones.
+
+---
+
+4. Objectives
+
+Primary Goals
+
+* Detect dependency manifests created or changed by coding agents
+* Detect package installation commands before they execute
+* Verify package authenticity and package health
+* Detect vulnerabilities and deprecated packages
+* Recommend safer alternatives
+* Block or require explicit approval for risky dependencies
+* Reduce hallucinated dependency installations across agent tools
+
+Secondary Goals
+
+* Improve developer productivity and dependency quality
+* Provide one reusable audit interface across ecosystems
+* Keep an auditable local record of decisions
+
+---
+
+5. Target Audience
+
+Primary
+
+* AI-assisted developers
+* Hackathon participants and students
+* Junior developers, freelancers, and startup founders
+
+Secondary
+
+* Engineering teams
+* Open-source contributors
+* Technical leads and security engineers
+
+---
+
+6. Supported Environments
+
+MVP
+
+* Local terminal on macOS, Linux, and Windows
+* Coding-agent hooks where the agent supports pre-tool or pre-command hooks
+* A `depcheck` command wrapper for agents without hooks
+* Workspace file watching for dependency manifests
+
+DepCheck AI must integrate through a small adapter per agent rather than scraping browser pages. Each adapter sends the proposed file change or command to the same local audit engine.
+
+Supported Agent Targets
+
+* Claude Code
+* Codex
+* Antigravity
+* Cursor
+* GitHub Copilot
+* Windsurf
+
+Future agent integrations must use the same adapter contract; no agent-specific audit logic belongs in the core engine.
+
+---
+
+7. Supported Ecosystems
+
+MVP package managers
+
+* npm, pnpm, yarn, bun
+* pip and uv
+
+MVP manifests
+
+* `package.json`
+* `requirements.txt`
+* `pyproject.toml`
+
+Next
+
+* `go.mod`
+* `Cargo.toml`
+* `Gemfile`
+* Maven and Gradle files
+
+---
+
+8. Functional Requirements
+
+FR-1 Agent Event Detection
+
+The agent adapter must send an audit request when a coding agent:
+
+* Creates or modifies a supported dependency manifest
+* Runs a supported package-install command
+
+When native hooks are unavailable, the `depcheck` wrapper must audit the command before delegating to the package manager. File watching detects manifest changes but cannot retroactively prevent an installer that was run outside the wrapper or a supported hook.
+
+---
+
+FR-2 Dependency Extraction
+
+Extract package names and requested versions from supported manifests and commands, including:
+
+```
+npm install express zod prisma
+pnpm add drizzle hono
+pip install fastapi==0.115.0 uvicorn
+uv add httpx
+```
+
+Ignore non-install commands and non-dependency file changes. Preserve the source agent, workspace, manifest or command, and requested version in the audit record.
+
+---
+
+FR-3 Package Verification
+
+For every package, verify:
+
+* It exists in the relevant trusted registry
+* Requested and latest versions
+* Description, homepage, repository, license, and author or publisher
+* Deprecation status
+
+---
+
+FR-4 Popularity
+
+Display, where the registry provides it:
+
+* Weekly and monthly downloads
+* Popularity trend
+
+---
+
+FR-5 Security
+
+Check:
+
+* Known CVEs and OSV vulnerabilities
+* Severity and affected versions
+* Last security advisory
+* Whether the requested version is vulnerable
+
+---
+
+FR-6 Maintenance
+
+Show, where available:
+
+* Last publish date
+* Number of maintainers
+* Repository stars, forks, last commit, and open issues
+* Release frequency
+
+---
+
+FR-7 Trust Score
+
+Generate a score out of 100:
+
+* Popularity: 30%
+* Maintenance: 30%
+* Security: 30%
+* Community quality: 10%
+
+Display these bands:
+
+* 95 to 100: Highly Recommended
+* 80 to 94: Recommended
+* 60 to 79: Use Carefully
+* Below 60: Avoid
+
+An existing package or a high score must not override a known critical vulnerability.
+
+---
+
+FR-8 Alternatives and Comparison
+
+For deprecated, vulnerable, unavailable, or low-scoring packages, suggest maintained alternatives when reliable candidates exist. For example, suggest `dayjs`, `date-fns`, or `luxon` for `moment`.
+
+Allow comparison of downloads, repository health, bundle size when available, maintenance, and security.
+
+---
+
+FR-9 Audit Decision
+
+Before an install runs, return one of:
+
+* Allow: all packages pass policy
+* Warn: install may proceed only after explicit approval
+* Block: do not execute the command
+
+Default block conditions: package does not exist, the requested version is known to have a critical vulnerability, or registry metadata identifies the package as malicious. The user may override a warning with a recorded reason; block overrides require an explicit local policy setting.
+
+For manifest changes, report the same decision before the agent continues. The adapter must make a supported agent wait for the decision; otherwise it must clearly report that enforcement is advisory.
+
+---
+
+FR-10 Results and Documentation
+
+The terminal or agent response must show the audit result, reasons, score, warnings, alternatives, and links to the registry, repository, and official documentation.
+
+Provide a local audit record containing timestamp, agent, workspace, requested dependency, result, and override reason. Do not send source code or manifest contents to a remote service.
+
+---
+
+9. Non-Functional Requirements
+
+* Command interception decision in under 1 second when cached; package verification in under 2 seconds where upstream APIs respond normally
+* Local-first operation with no required hosted backend for MVP
+* Clear timeout and unavailable-source warnings; do not treat failed verification as a successful audit
+* Least-privilege agent integrations and no remote code execution
+* Store audit records locally by default
+* Support Windows, macOS, and Linux
+
+---
+
+10. MVP Scope
+
+Build one local audit engine, npm and PyPI checks, OSV vulnerability checks, `package.json` / `requirements.txt` / `pyproject.toml` parsing, and a CLI wrapper.
+
+Implement native adapters first for Claude Code, Codex, and any other installed agent that exposes a pre-command or pre-tool hook. For all other agents, provide the documented `depcheck` wrapper and manifest watcher until their hook APIs support enforcement.
+
+Defer a browser extension, a web dashboard, shared team reporting, custom scoring weights, and non-MVP ecosystems until the local enforcement path works.

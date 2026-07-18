@@ -1,0 +1,21 @@
+{
+  "name": "depcheck-ai",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "depcheck": "dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "stress": "vitest run test/stress.test.ts",
+    "audit": "node dist/cli.js audit",
+    "hook": "node .codex/hooks/depcheck-hook.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "latest",
+    "typescript": "latest",
+    "vitest": "latest"
+  }
+}
