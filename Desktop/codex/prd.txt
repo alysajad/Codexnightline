@@ -190,6 +190,9 @@ FR-5 Security
 Check:
 
 * Known CVEs and OSV vulnerabilities
+* GitHub Advisory Database advisories, including malware reports
+* CISA Known Exploited Vulnerabilities matches for actively exploited CVEs
+* Recent, package-specific Hacker News security reports as review signals
 * Severity and affected versions
 * Last security advisory
 * Whether the requested version is vulnerable
@@ -243,7 +246,7 @@ Before an install runs, return one of:
 * Warn: install may proceed only after explicit approval
 * Block: do not execute the command
 
-Default block conditions: package does not exist, the requested version is known to have a critical vulnerability, or registry metadata identifies the package as malicious. The user may override a warning with a recorded reason; block overrides require an explicit local policy setting.
+Default block conditions: package does not exist, the requested version has a critical vulnerability, or an authoritative advisory identifies it as malware. CISA active-exploitation matches and relevant news reports warn for review; news alone never blocks an install. The user may override a warning with a recorded reason; block overrides require an explicit local policy setting.
 
 For manifest changes, report the same decision before the agent continues. The adapter must make a supported agent wait for the decision; otherwise it must clearly report that enforcement is advisory.
 

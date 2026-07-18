@@ -2,6 +2,7 @@ import { appendFile, mkdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { Dependency, AuditReport, PackageAudit, Vulnerability } from "./types.js";
 import { scoreAudit, suggestedAlternatives } from "./score.js";
+import { threatIntel } from "./threat-intel.js";
 
 const json = async <T>(url: string, init?: RequestInit): Promise<T> => {
   const response = await fetch(url, { ...init, signal: AbortSignal.timeout(8_000), headers: { accept: "application/json", ...init?.headers } });
@@ -13,12 +14,12 @@ const githubRepo = (value?: string) => value?.match(/github\.com[/:]([^/]+\/[^/#
 
 async function vulnerabilities(dependency: Dependency): Promise<Vulnerability[]> {
   try {
-    const payload = await json<{ vulns?: Array<{ id: string; summary?: string; database_specific?: { severity?: string }; severity?: Array<{ score?: string }> }> }>("https://api.osv.dev/v1/query", {
+    const payload = await json<{ vulns?: Array<{ id: string; aliases?: string[]; summary?: string; database_specific?: { severity?: string }; severity?: Array<{ score?: string }> }> }>("https://api.osv.dev/v1/query", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ package: { name: dependency.name, ecosystem: dependency.ecosystem === "npm" ? "npm" : "PyPI" }, version: dependency.version || undefined })
     });
-    return (payload.vulns ?? []).map((vulnerability) => ({ id: vulnerability.id, summary: vulnerability.summary, severity: vulnerability.database_specific?.severity ?? vulnerability.severity?.[0]?.score }));
+    return (payload.vulns ?? []).map((vulnerability) => ({ id: vulnerability.id, summary: vulnerability.summary, severity: vulnerability.database_specific?.severity ?? vulnerability.severity?.[0]?.score, aliases: vulnerability.aliases ?? [] }));
   } catch { return []; }
 }
 
@@ -40,11 +41,12 @@ async function npmAudit(dependency: Dependency): Promise<PackageAudit> {
     const downloads = await json<{ downloads: number }>(`https://api.npmjs.org/downloads/point/last-month/${encodeURIComponent(dependency.name)}`).catch(() => undefined);
     const weekly = downloads ? Math.round(downloads.downloads / 4.345) : undefined;
     const [vulnerabilitiesResult, githubResult] = await Promise.all([vulnerabilities({ ...dependency, version }), github(repository)]);
-    const base = { dependency, exists: true as const, latestVersion: metadata["dist-tags"].latest, description: data?.description, homepage: data?.homepage, repository, license: data?.license, author: typeof data?.author === "string" ? data.author : data?.author?.name, deprecated: data?.deprecated, weeklyDownloads: weekly, monthlyDownloads: downloads?.downloads, publishedAt: metadata.time?.[version] ?? metadata.time?.[metadata["dist-tags"].latest], maintainers: data?.maintainers?.length, github: githubResult, vulnerabilities: vulnerabilitiesResult };
+    const intelligence = await threatIntel(dependency, version, vulnerabilitiesResult);
+    const base = { dependency, exists: true as const, latestVersion: metadata["dist-tags"].latest, description: data?.description, homepage: data?.homepage, repository, license: data?.license, author: typeof data?.author === "string" ? data.author : data?.author?.name, deprecated: data?.deprecated, weeklyDownloads: weekly, monthlyDownloads: downloads?.downloads, publishedAt: metadata.time?.[version] ?? metadata.time?.[metadata["dist-tags"].latest], maintainers: data?.maintainers?.length, github: githubResult, ...intelligence };
     return { ...base, alternatives: suggestedAlternatives(dependency.name), ...scoreAudit(base) };
   } catch (error) {
-    if ((error as { status?: number }).status === 404) return { dependency, exists: false, vulnerabilities: [], alternatives: suggestedAlternatives(dependency.name), ...scoreAudit({ dependency, exists: false, vulnerabilities: [] }) };
-    return { dependency, exists: "unknown", vulnerabilities: [], alternatives: suggestedAlternatives(dependency.name), ...scoreAudit({ dependency, exists: "unknown", vulnerabilities: [] }) };
+    if ((error as { status?: number }).status === 404) return { dependency, exists: false, vulnerabilities: [], threatSignals: [], alternatives: suggestedAlternatives(dependency.name), ...scoreAudit({ dependency, exists: false, vulnerabilities: [], threatSignals: [] }) };
+    return { dependency, exists: "unknown", vulnerabilities: [], threatSignals: [], alternatives: suggestedAlternatives(dependency.name), ...scoreAudit({ dependency, exists: "unknown", vulnerabilities: [], threatSignals: [] }) };
   }
 }
 
@@ -55,11 +57,12 @@ async function pypiAudit(dependency: Dependency): Promise<PackageAudit> {
     const publishedAt = metadata.releases[version]?.[0]?.upload_time_iso_8601;
     const repository = metadata.info.project_url || metadata.info.home_page;
     const [vulnerabilitiesResult, githubResult] = await Promise.all([vulnerabilities({ ...dependency, version }), github(repository)]);
-    const base = { dependency, exists: true as const, latestVersion: metadata.info.version, description: metadata.info.summary, homepage: metadata.info.home_page, repository, license: metadata.info.license, author: metadata.info.author, publishedAt, github: githubResult, vulnerabilities: vulnerabilitiesResult };
+    const intelligence = await threatIntel(dependency, version, vulnerabilitiesResult);
+    const base = { dependency, exists: true as const, latestVersion: metadata.info.version, description: metadata.info.summary, homepage: metadata.info.home_page, repository, license: metadata.info.license, author: metadata.info.author, publishedAt, github: githubResult, ...intelligence };
     return { ...base, alternatives: suggestedAlternatives(dependency.name), ...scoreAudit(base) };
   } catch (error) {
-    if ((error as { status?: number }).status === 404) return { dependency, exists: false, vulnerabilities: [], alternatives: suggestedAlternatives(dependency.name), ...scoreAudit({ dependency, exists: false, vulnerabilities: [] }) };
-    return { dependency, exists: "unknown", vulnerabilities: [], alternatives: suggestedAlternatives(dependency.name), ...scoreAudit({ dependency, exists: "unknown", vulnerabilities: [] }) };
+    if ((error as { status?: number }).status === 404) return { dependency, exists: false, vulnerabilities: [], threatSignals: [], alternatives: suggestedAlternatives(dependency.name), ...scoreAudit({ dependency, exists: false, vulnerabilities: [], threatSignals: [] }) };
+    return { dependency, exists: "unknown", vulnerabilities: [], threatSignals: [], alternatives: suggestedAlternatives(dependency.name), ...scoreAudit({ dependency, exists: "unknown", vulnerabilities: [], threatSignals: [] }) };
   }
 }
 

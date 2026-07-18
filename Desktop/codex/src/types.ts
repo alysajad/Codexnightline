@@ -10,6 +10,17 @@ export type Vulnerability = {
   id: string;
   summary?: string;
   severity?: string;
+  aliases?: string[];
+};
+
+export type ThreatSignal = {
+  source: "github-advisory" | "cisa-kev" | "hacker-news";
+  kind: "advisory" | "actively-exploited" | "news" | "malware";
+  title: string;
+  url: string;
+  publishedAt?: string;
+  cve?: string;
+  severity?: string;
 };
 
 export type PackageAudit = {
@@ -28,6 +39,7 @@ export type PackageAudit = {
   maintainers?: number;
   github?: { stars?: number; forks?: number; openIssues?: number; pushedAt?: string };
   vulnerabilities: Vulnerability[];
+  threatSignals: ThreatSignal[];
   alternatives: string[];
   score: number | null;
   decision: "allow" | "warn" | "block";

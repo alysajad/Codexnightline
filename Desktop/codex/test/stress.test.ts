@@ -9,7 +9,7 @@ describe("offline stress test", () => {
     for (let index = 0; index < 10_000; index++) {
       const dependencies = extractInstallCommand(index % 2 ? "npm install express@5 zod" : "pip install fastapi==0.115.0 uvicorn");
       packages += dependencies.length;
-      for (const dependency of dependencies) scoreAudit({ dependency, exists: true, vulnerabilities: [] });
+      for (const dependency of dependencies) scoreAudit({ dependency, exists: true, vulnerabilities: [], threatSignals: [] });
     }
     expect(packages).toBe(20_000);
     expect(performance.now() - started).toBeLessThan(2_000);
