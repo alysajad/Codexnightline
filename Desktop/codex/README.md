@@ -18,7 +18,7 @@ npm.cmd run audit -- "npm install typescript" --json
 npm.cmd run audit -- requirements.txt --json
 ```
 
-The CLI records audit decisions in `.depcheck/audit.jsonl`. It checks package existence, versions, package metadata, npm downloads, OSV and GitHub advisories, CISA's actively exploited CVEs, Hacker News security reports, publish dates, maintainers, GitHub health, a trust score, and known alternatives. Verified malware and critical vulnerabilities block installs; CISA and news reports warn for review.
+The CLI records audit decisions in `.depcheck/audit.jsonl`. It checks package existence, versions, package metadata, npm downloads, OSV and GitHub advisories, CISA's actively exploited CVEs, Hacker News security reports, publish dates, maintainers, GitHub health, a trust score, and known alternatives. After an npm install, it also runs `npm audit --json` against the resolved lockfile. Verified malware and critical vulnerabilities block installs; CISA and news reports warn for review.
 
 `npm`, `pnpm`, `yarn`, `bun`, `pip`, and `uv` install commands work in the MVP. The hook blocks nonexistent packages and known critical vulnerabilities. It warns for unavailable registries, deprecated packages, and noncritical vulnerabilities.
 

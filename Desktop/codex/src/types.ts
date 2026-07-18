@@ -46,9 +46,16 @@ export type PackageAudit = {
   reasons: string[];
 };
 
+export type NpmTreeAudit = {
+  vulnerabilities: { info: number; low: number; moderate: number; high: number; critical: number; total: number };
+  decision: "allow" | "warn" | "block";
+  reason: string;
+};
+
 export type AuditReport = {
   source: string;
   checkedAt: string;
   packages: PackageAudit[];
+  npmAudit?: NpmTreeAudit;
   decision: "allow" | "warn" | "block";
 };

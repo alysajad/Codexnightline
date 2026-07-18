@@ -10,9 +10,9 @@ process.stdin.on("end", async () => {
     const command = input.tool_input?.command ?? "";
     const dependencies = extractInstallCommand(command).length ? extractInstallCommand(command) : extractPatch(command);
     if (!dependencies.length) return;
-    const report = await auditDependencies(dependencies, command);
+    const report = await auditDependencies(dependencies, command, input.cwd);
     await saveAudit(report, input.cwd);
-    const details = report.packages.map((item) => `${item.dependency.name}: ${item.decision}${item.reasons.length ? ` (${item.reasons.join(" ")})` : ""}`).join("; ");
+    const details = [...report.packages.map((item) => `${item.dependency.name}: ${item.decision}${item.reasons.length ? ` (${item.reasons.join(" ")})` : ""}`), report.npmAudit?.reason].filter(Boolean).join("; ");
     if (report.decision === "block") {
       console.log(JSON.stringify({ hookSpecificOutput: { hookEventName: "PreToolUse", permissionDecision: "deny", permissionDecisionReason: `DepCheck blocked this dependency action. ${details}` } }));
     } else if (report.decision === "warn") {

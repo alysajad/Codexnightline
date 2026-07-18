@@ -1,5 +1,5 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { dirname } from "node:path";
+import { dirname, join } from "node:path";
 
 type HookHandler = { type: "command"; command: string; commandWindows: string; timeout: number; statusMessage: string };
 type HookGroup = { matcher: string; hooks: HookHandler[] };
@@ -26,6 +26,11 @@ export function addCodexGuardian(config: HooksFile, hookPath: string): HooksFile
     const next = { matcher, hooks: [...clean, handler(hookPath)] };
     hooks.PreToolUse = group ? groups.map((candidate) => candidate === group ? next : candidate) : [...groups, next];
   }
+  const postGroups = hooks.PostToolUse ?? [];
+  const post = postGroups.find((candidate) => candidate.matcher === "^Bash$");
+  const cleanPost = (post?.hooks ?? []).filter((item) => item.statusMessage !== marker);
+  const nextPost = { matcher: "^Bash$", hooks: [...cleanPost, handler(join(dirname(hookPath), "post-hook.js"))] };
+  hooks.PostToolUse = post ? postGroups.map((candidate) => candidate === post ? nextPost : candidate) : [...postGroups, nextPost];
   return { ...config, description: config.description ?? "Codex lifecycle hooks.", hooks };
 }
 
@@ -34,6 +39,9 @@ export function removeCodexGuardian(config: HooksFile): HooksFile {
   const groups = (hooks.PreToolUse ?? []).map((group) => ({ ...group, hooks: group.hooks.filter((item) => item.statusMessage !== marker) })).filter((group) => group.hooks.length);
   if (groups.length) hooks.PreToolUse = groups;
   else delete hooks.PreToolUse;
+  const postGroups = (hooks.PostToolUse ?? []).map((group) => ({ ...group, hooks: group.hooks.filter((item) => item.statusMessage !== marker) })).filter((group) => group.hooks.length);
+  if (postGroups.length) hooks.PostToolUse = postGroups;
+  else delete hooks.PostToolUse;
   return { ...config, hooks };
 }
 

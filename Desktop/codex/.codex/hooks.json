@@ -26,6 +26,20 @@
           }
         ]
       }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "^Bash$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$(git rev-parse --show-toplevel)/.codex/hooks/depcheck-post-hook.mjs\"",
+            "commandWindows": "node .codex\\hooks\\depcheck-post-hook.mjs",
+            "timeout": 30,
+            "statusMessage": "Auditing resolved npm dependencies"
+          }
+        ]
+      }
     ]
   }
 }

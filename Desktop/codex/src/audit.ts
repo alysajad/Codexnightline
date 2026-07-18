@@ -1,6 +1,8 @@
 import { appendFile, mkdir } from "node:fs/promises";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import { dirname, join } from "node:path";
-import { Dependency, AuditReport, PackageAudit, Vulnerability } from "./types.js";
+import { Dependency, AuditReport, NpmTreeAudit, PackageAudit, Vulnerability } from "./types.js";
 import { scoreAudit, suggestedAlternatives } from "./score.js";
 import { threatIntel } from "./threat-intel.js";
 
@@ -9,6 +11,7 @@ const json = async <T>(url: string, init?: RequestInit): Promise<T> => {
   if (!response.ok) throw Object.assign(new Error(`${response.status} ${url}`), { status: response.status });
   return response.json() as Promise<T>;
 };
+const exec = promisify(execFile);
 
 const githubRepo = (value?: string) => value?.match(/github\.com[/:]([^/]+\/[^/#.]+?)(?:\.git)?$/i)?.[1];
 
@@ -32,7 +35,7 @@ async function github(repository?: string): Promise<PackageAudit["github"]> {
   } catch { return; }
 }
 
-async function npmAudit(dependency: Dependency): Promise<PackageAudit> {
+async function npmPackageAudit(dependency: Dependency): Promise<PackageAudit> {
   try {
     const metadata = await json<{ "dist-tags": { latest: string }; time?: Record<string, string>; versions: Record<string, { description?: string; homepage?: string; repository?: string | { url?: string }; license?: string; author?: string | { name?: string }; deprecated?: string; maintainers?: unknown[] }> }>(`https://registry.npmjs.org/${encodeURIComponent(dependency.name)}`);
     const version = dependency.version?.replace(/^[~^]/, "") || metadata["dist-tags"].latest;
@@ -66,9 +69,33 @@ async function pypiAudit(dependency: Dependency): Promise<PackageAudit> {
   }
 }
 
-export async function auditDependencies(dependencies: Dependency[], source: string): Promise<AuditReport> {
-  const packages = await Promise.all(dependencies.map((dependency) => dependency.ecosystem === "npm" ? npmAudit(dependency) : pypiAudit(dependency)));
-  return { source, checkedAt: new Date().toISOString(), packages, decision: packages.some((item) => item.decision === "block") ? "block" : packages.some((item) => item.decision === "warn") ? "warn" : "allow" };
+export function parseNpmAudit(stdout: string): NpmTreeAudit | undefined {
+  try {
+    const values = JSON.parse(stdout).metadata?.vulnerabilities;
+    if (!values || typeof values.total !== "number") return;
+    const vulnerabilities = Object.fromEntries(["info", "low", "moderate", "high", "critical", "total"].map((key) => [key, Number(values[key] ?? 0)])) as NpmTreeAudit["vulnerabilities"];
+    const decision = vulnerabilities.critical ? "block" : vulnerabilities.total ? "warn" : "allow";
+    return { vulnerabilities, decision, reason: vulnerabilities.total ? `npm audit found ${vulnerabilities.total} dependency-tree ${vulnerabilities.total === 1 ? "vulnerability" : "vulnerabilities"}.` : "npm audit found no dependency-tree vulnerabilities." };
+  } catch { return; }
+}
+
+export async function auditNpmLockfile(cwd: string): Promise<NpmTreeAudit | undefined> {
+  const npm = process.platform === "win32" ? "npm.cmd" : "npm";
+  try {
+    const result = await exec(npm, ["audit", "--json", "--package-lock-only", "--ignore-scripts"], { cwd, timeout: 20_000, windowsHide: true, maxBuffer: 1_000_000 });
+    return parseNpmAudit(result.stdout);
+  } catch (error) {
+    return parseNpmAudit(String((error as { stdout?: string | Buffer }).stdout ?? ""));
+  }
+}
+
+export async function auditDependencies(dependencies: Dependency[], source: string, cwd = process.cwd()): Promise<AuditReport> {
+  const [packages, npmAudit] = await Promise.all([
+    Promise.all(dependencies.map((dependency) => dependency.ecosystem === "npm" ? npmPackageAudit(dependency) : pypiAudit(dependency))),
+    dependencies.some((dependency) => dependency.ecosystem === "npm") ? auditNpmLockfile(cwd) : undefined
+  ]);
+  const decisions = [...packages.map((item) => item.decision), npmAudit?.decision];
+  return { source, checkedAt: new Date().toISOString(), packages, npmAudit, decision: decisions.includes("block") ? "block" : decisions.includes("warn") ? "warn" : "allow" };
 }
 
 export async function saveAudit(report: AuditReport, cwd = process.cwd()): Promise<void> {

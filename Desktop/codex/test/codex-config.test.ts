@@ -10,6 +10,7 @@ describe("Codex hook installation", () => {
     const once = addCodexGuardian(existing, "/package/dist/hook.js");
     const twice = addCodexGuardian(once, "/package/dist/hook.js");
     expect(twice.hooks?.PreToolUse?.flatMap((group) => group.hooks).filter((hook) => hook.statusMessage === "DepCheck Guardian")).toHaveLength(2);
+    expect(twice.hooks?.PostToolUse?.flatMap((group) => group.hooks).filter((hook) => hook.statusMessage === "DepCheck Guardian")).toHaveLength(1);
     expect(twice.hooks?.PreToolUse?.[0].hooks.some((hook) => hook.statusMessage === "Existing")).toBe(true);
   });
 
@@ -17,11 +18,13 @@ describe("Codex hook installation", () => {
     const config = addCodexGuardian({ hooks: { PreToolUse: [{ matcher: "^Bash$", hooks: [{ type: "command", command: "node keep.js", commandWindows: "node keep.js", timeout: 30, statusMessage: "Keep" }] }] } }, "/package/dist/hook.js");
     const removed = removeCodexGuardian(config);
     expect(removed.hooks?.PreToolUse).toEqual([{ matcher: "^Bash$", hooks: [{ type: "command", command: "node keep.js", commandWindows: "node keep.js", timeout: 30, statusMessage: "Keep" }] }]);
+    expect(removed.hooks?.PostToolUse).toBeUndefined();
   });
 
   it("creates a missing hooks file", async () => {
     const path = join(await mkdtemp(join(tmpdir(), "depcheck-")), "hooks.json");
     await writeCodexGuardian(path, "/package/dist/hook.js");
     expect(JSON.parse(await readFile(path, "utf8")).hooks.PreToolUse).toHaveLength(2);
+    expect(JSON.parse(await readFile(path, "utf8")).hooks.PostToolUse).toHaveLength(1);
   });
 });
